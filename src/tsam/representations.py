@@ -39,6 +39,10 @@ def representations(
         clusterCenters = durationRepresentation(
             candidates, clusterOrder, distributionPeriodWise, timeStepsPerPeriod, representMinMax=True,
         )
+    elif representationMethod == "socRepresentation": #Dano
+        clusterCenters, clusterCenterIndices = socRepresentation_with_diagnostics(
+            candidates, clusterOrder, representationDict, timeStepsPerPeriod, representationAttribute='soc_stresses', plotDiagnostics=False
+        )
     else:
         raise ValueError("Chosen 'representationMethod' does not exist.")
          
@@ -165,3 +169,113 @@ def minmaxmeanRepresentation(
                 )
         clusterCenters.append(currentClusterCenter)
     return clusterCenters
+
+def socRepresentation(candidates, clusterOrder, representationDict, timeStepsPerPeriod): #Dano
+    """
+    Selects cluster representatives based on the timestep where `soc_stresses` is maximised.
+    All features (demand, wind, etc.) are taken from the same candidate index.
+    
+    Parameters:
+    - candidates: np.ndarray of shape (n_periods, n_features * timeStepsPerPeriod)
+    - clusterOrder: 1D np.ndarray of length n_periods
+    - representationDict: dict with feature names as keys (used to find soc_stresses)
+    - timeStepsPerPeriod: int
+
+    Returns:
+    - clusterCenters: list of representative vectors (np.ndarray)
+    - clusterCenterIndices: list of row indices
+    """
+    
+    feature_names = list(representationDict.keys())
+    try:
+        soc_index = feature_names.index('soc_stresses')
+    except ValueError:
+        raise ValueError("'soc_stresses' must be present in representationDict.")
+
+    clusterCenters = []
+    clusterCenterIndices = []
+
+    for clusterNum in np.unique(clusterOrder):
+        indices = np.where(clusterOrder == clusterNum)[0]
+
+        # Track maximum soc_stresses value and corresponding index
+        max_val = -np.inf
+        max_idx = None
+
+        for i in indices:
+            start = soc_index * timeStepsPerPeriod
+            end = (soc_index + 1) * timeStepsPerPeriod
+            current_max = np.max(candidates[i, start:end])
+
+            if current_max > max_val:
+                max_val = current_max
+                max_idx = i
+
+        # Add full vector for that timestep
+        clusterCenters.append(candidates[max_idx])
+        clusterCenterIndices.append(max_idx)
+
+    return clusterCenters, clusterCenterIndices
+
+
+
+def socRepresentation_with_diagnostics(
+    candidates, clusterOrder, representationDict, timeStepsPerPeriod,
+    representationAttribute='soc_stresses',
+    plotDiagnostics=True
+):
+    import matplotlib
+    import matplotlib.pyplot as plt
+    matplotlib.use('TkAgg') #avoids the annoying Qt errors on windows
+    feature_names = list(representationDict.keys())
+    try:
+        soc_index = feature_names.index(representationAttribute)
+    except ValueError:
+        raise ValueError(f"'{representationAttribute}' must be present in representationDict.")
+
+    clusterCenters = []
+    clusterCenterIndices = []
+
+    for clusterNum in np.unique(clusterOrder):
+        indices = np.where(clusterOrder == clusterNum)[0]
+
+        # For diagnostics
+        score_val = -np.inf
+        score_idx = None
+
+        if plotDiagnostics:
+            plt.figure(figsize=(10, 4))
+            plt.title(f"Cluster {clusterNum} – SoC profiles")
+        
+        for idx in indices:
+            start = soc_index * timeStepsPerPeriod
+            end = (soc_index + 1) * timeStepsPerPeriod
+            soc_profile = candidates[idx, start:end]
+            if representationDict['soc_stresses'] == 'mean':
+                current_score = np.mean(soc_profile)
+            elif representationDict['soc_stresses'] == 'max':
+                current_score = np.max(soc_profile)
+            else: 
+                current_score = np.min(soc_profile)
+
+            if current_score > score_val:
+                score_val = current_score
+                score_idx = idx
+
+            if plotDiagnostics:
+                plt.plot(soc_profile, alpha=0.4, label=f"Idx {idx}")
+
+        # Plot chosen one in bold
+        if plotDiagnostics and score_idx is not None:
+            chosen_profile = candidates[score_idx, soc_index * timeStepsPerPeriod : (soc_index + 1) * timeStepsPerPeriod]
+            plt.plot(chosen_profile, label=f"Chosen: {score_idx}", color='black', linewidth=2)
+            # plt.legend()
+            plt.xlabel("Timestep")
+            plt.ylabel("SoC stresses")
+            plt.tight_layout()
+            plt.show() 
+
+        clusterCenters.append(candidates[score_idx])
+        clusterCenterIndices.append(score_idx)
+
+    return clusterCenters, clusterCenterIndices

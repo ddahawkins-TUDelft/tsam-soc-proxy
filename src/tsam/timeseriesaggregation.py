@@ -105,6 +105,7 @@ class TimeSeriesAggregation(object):
         "durationRepresentation",
         "distributionRepresentation",
         "distributionAndMinMaxRepresentation",
+        "socRepresentation" #DANO
     ]
 
     EXTREME_PERIOD_METHODS = [
@@ -224,6 +225,7 @@ class TimeSeriesAggregation(object):
             * 'minmaxmeanRepresentation'
             * 'durationRepresentation'/ 'distributionRepresentation'
             * 'distribtionAndMinMaxRepresentation'
+            * 'socRepresentation' #Dano addition
         :type representationMethod: string
 
         :param representationDict: Dictionary which states for each attribute whether the profiles in each cluster
@@ -245,6 +247,7 @@ class TimeSeriesAggregation(object):
             * 'minmaxmeanRepresentation'
             * 'durationRepresentation'/ 'distributionRepresentation'
             * 'distribtionAndMinMaxRepresentation'
+            * 'socRepresentation' #Dano addition
         :type segmentRepresentationMethod: string
 
         :param predefClusterOrder: Instead of aggregating a time series, a predefined grouping is taken
